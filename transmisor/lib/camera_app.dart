@@ -27,6 +27,10 @@ class _CameraAppState extends State<CameraApp> {
   @override
   void initState() {
     super.initState();
+    initCamera();
+  }
+
+  void initCamera() {
     controller = CameraController(
       cameras[0],
       ResolutionPreset.medium,
@@ -52,30 +56,14 @@ class _CameraAppState extends State<CameraApp> {
 
   void sendImageToSocket(CameraImage cameraImage) async {
     canSendImage = false;
-    var image = await _convertBGRA8888(cameraImage);
-    final jpegBytes = Uint8List.fromList(img.encodeJpg(image));
+    final jpegBytes = await _getJpegBytes(cameraImage);
     compressAndStreamImage(jpegBytes);
   }
 
-  void compressAndStreamImage(Uint8List jpegBytes) async {
-    final input = iocompress.ImageFile(
-      rawBytes: jpegBytes,
-      filePath: '${(await getApplicationDocumentsDirectory()).path}/pic.jpg',
-    );
-
-    iocompress
-        .compressInQueue(iocompress.ImageFileConfiguration(
-      input: input,
-    ))
-        .then((output) {
-      final bytes = output.rawBytes;
-      print('List size: ${bytes.length}');
-      final address = InternetAddress(widget.monitorIp);
-      const port = 16001;
-      widget.socket.send(bytes, address, port);
-
-      canSendImage = true;
-    });
+  Future<Uint8List> _getJpegBytes(CameraImage image) async {
+    var image = await _convertBGRA8888(cameraImage);
+    final jpegBytes = Uint8List.fromList(img.encodeJpg(image));
+    return jpegBytes;
   }
 
   Future<img.Image> _convertBGRA8888(CameraImage image) async {
@@ -86,6 +74,29 @@ class _CameraAppState extends State<CameraApp> {
       order: img.ChannelOrder.bgra,
     );
     return data;
+  }
+
+  void compressAndStreamImage(Uint8List jpegBytes) async {
+    final input = iocompress.ImageFile(
+      rawBytes: jpegBytes,
+      filePath: '${(await getApplicationDocumentsDirectory()).path}/pic.jpg',
+    );
+
+    iocompress
+        .compressInQueue(iocompress.ImageFileConfiguration(
+          input: input,
+        ))
+        .then(_sendBytesToSocket);
+  }
+
+  void _sendBytesToSocket(iocompress.ImageFile output) {
+    final bytes = output.rawBytes;
+    print('List size: ${bytes.length}');
+    final address = InternetAddress(widget.monitorIp);
+    const port = 16001;
+    widget.socket.send(bytes, address, port);
+
+    canSendImage = true;
   }
 
   @override
