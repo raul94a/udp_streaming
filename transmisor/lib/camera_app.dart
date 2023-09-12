@@ -39,7 +39,7 @@ class _CameraAppState extends State<CameraApp> {
       }
 
       setState(() {});
-      
+
       controller.startImageStream((image) {
         if (canSendImage) {
           sendImageToSocket(image);
@@ -53,22 +53,23 @@ class _CameraAppState extends State<CameraApp> {
   void sendImageToSocket(CameraImage cameraImage) async {
     canSendImage = false;
     var image = await _convertBGRA8888(cameraImage);
-    final jpeg = Uint8List.fromList(img.encodeJpg(image));
+    final jpegBytes = Uint8List.fromList(img.encodeJpg(image));
+    compressAndStreamImage(jpegBytes);
+  }
+
+  void compressAndStreamImage(Uint8List jpegBytes) async {
     final input = iocompress.ImageFile(
-      rawBytes: jpeg,
+      rawBytes: jpegBytes,
       filePath: '${(await getApplicationDocumentsDirectory()).path}/pic.jpg',
     );
 
-
-    
     iocompress
         .compressInQueue(iocompress.ImageFileConfiguration(
-            input: input,
-        ))
+      input: input,
+    ))
         .then((output) {
       final bytes = output.rawBytes;
       print('List size: ${bytes.length}');
-
       final address = InternetAddress(widget.monitorIp);
       const port = 16001;
       widget.socket.send(bytes, address, port);
@@ -79,7 +80,6 @@ class _CameraAppState extends State<CameraApp> {
 
   Future<img.Image> _convertBGRA8888(CameraImage image) async {
     final data = img.Image.fromBytes(
-     
       width: image.planes[0].bytesPerRow ~/ 4,
       height: image.height,
       bytes: image.planes[0].bytes.buffer,
