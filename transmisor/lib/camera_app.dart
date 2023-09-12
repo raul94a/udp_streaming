@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:image_compression/image_compression.dart';
 import 'package:image_compression/image_compression_io.dart' as iocompress;
 import 'package:path_provider/path_provider.dart';
 
@@ -60,7 +61,7 @@ class _CameraAppState extends State<CameraApp> {
     compressAndStreamImage(jpegBytes);
   }
 
-  Future<Uint8List> _getJpegBytes(CameraImage image) async {
+  Future<Uint8List> _getJpegBytes(CameraImage cameraImage) async {
     var image = await _convertBGRA8888(cameraImage);
     final jpegBytes = Uint8List.fromList(img.encodeJpg(image));
     return jpegBytes;
@@ -85,12 +86,18 @@ class _CameraAppState extends State<CameraApp> {
     iocompress
         .compressInQueue(iocompress.ImageFileConfiguration(
           input: input,
+          config: const Configuration(
+            jpgQuality: 85,
+            outputType: OutputType.jpg
+          )
         ))
         .then(_sendBytesToSocket);
   }
 
   void _sendBytesToSocket(iocompress.ImageFile output) {
     final bytes = output.rawBytes;
+    // Si la bytes > 64000 no se podrá enviar la imagen 
+    // mediante UDP
     print('List size: ${bytes.length}');
     final address = InternetAddress(widget.monitorIp);
     const port = 16001;
